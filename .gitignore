@@ -30,3 +30,15 @@
 *.exe
 *.out
 *.app
+
+# Build directory
+build/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Github
+.github/
