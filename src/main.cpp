@@ -1,5 +1,6 @@
 #include "raylib.h"
 #include <vector>
+#include <cmath>
 
 struct Bullet
 {
@@ -12,8 +13,56 @@ struct StickMan
 {
     float x, y;
     bool isPlayer;
+    bool alive;
     Color color;
 };
+
+Vector2 Rotate(Vector2 point, Vector2 center, float angleDeg)
+{
+    float rad = angleDeg * PI / 180.0f;
+    float s = sinf(rad);
+    float c = cosf(rad);
+
+    point.x -= center.x;
+    point.y -= center.y;
+
+    float xnew = point.x * c - point.y * s;
+    float ynew = point.x * s + point.y * c;
+
+    return {xnew + center.x, ynew + center.y};
+}
+
+void DrawStickMan(const StickMan &man)
+{
+    float dir = man.isPlayer ? -1.0f : 1.0f;
+    float angle = 0.0f;
+
+    // If dead, rotate 90 degrees backwards
+    if (!man.alive)
+    {
+        angle = man.isPlayer ? 90.0f : -90.0f;
+    }
+
+    // Pivot around the feet
+    Vector2 center = {man.x, man.y + 80};
+
+    auto T = [&](float x, float y) -> Vector2
+    {
+        return Rotate({x, y}, center, angle);
+    };
+
+    // Head
+    DrawCircleV(T(man.x, man.y - 50), 20, man.color);
+    // Body
+    DrawLineEx(T(man.x, man.y - 30), T(man.x, man.y + 40), 3.0f, BLACK);
+    // Arms (Holding gun)
+    DrawLineEx(T(man.x, man.y - 10), T(man.x + 30 * dir, man.y), 3.0f, BLACK);
+    // Legs
+    DrawLineEx(T(man.x, man.y + 40), T(man.x - 20, man.y + 80), 3.0f, BLACK);
+    DrawLineEx(T(man.x, man.y + 40), T(man.x + 20, man.y + 80), 3.0f, BLACK);
+    // Gun (Approximated as a thick line)
+    DrawLineEx(T(man.x + 30 * dir, man.y), T(man.x + 50 * dir, man.y), 10.0f, BLACK);
+}
 
 int main()
 {
@@ -23,17 +72,17 @@ int main()
     InitWindow(screenWidth, screenHeight, "My First Game - Stick Men");
 
     // Player on the right (600), Enemy on the left (200)
-    StickMan player = {600, 300, true, BLUE};
-    StickMan enemy = {200, 300, false, RED};
+    StickMan player = {600, 300, true, true, BLUE};
+    StickMan enemy = {200, 300, false, true, RED};
 
     std::vector<Bullet> bullets;
 
-    SetTargetFPS(120);
+    SetTargetFPS(60);
 
     while (!WindowShouldClose())
     {
         // Update
-        if (IsKeyPressed(KEY_SPACE))
+        if (IsKeyPressed(KEY_SPACE) && player.alive)
         {
             // Player shoots to the left
             // Spawn bullet at the end of the gun
@@ -51,6 +100,19 @@ int main()
                 {
                     bullet.active = false;
                 }
+
+                // Collision with Enemy
+                if (enemy.alive)
+                {
+                    // Simple bounding box for enemy
+                    // x-20 to x+20, y-70 to y+80
+                    if (bullet.x >= enemy.x - 20 && bullet.x <= enemy.x + 20 &&
+                        bullet.y >= enemy.y - 70 && bullet.y <= enemy.y + 80)
+                    {
+                        enemy.alive = false;
+                        bullet.active = false;
+                    }
+                }
             }
         }
 
@@ -60,31 +122,8 @@ int main()
 
         DrawText("Press SPACE to shoot!", 10, 10, 20, DARKGRAY);
 
-        // --- Draw Enemy (Left, facing Right) ---
-        // Head
-        DrawCircle(enemy.x, enemy.y - 50, 20, enemy.color);
-        // Body
-        DrawLineEx({enemy.x, enemy.y - 30}, {enemy.x, enemy.y + 40}, 3.0f, BLACK);
-        // Arms (Holding gun to the right)
-        DrawLineEx({enemy.x, enemy.y - 10}, {enemy.x + 30, enemy.y}, 3.0f, BLACK);
-        // Legs
-        DrawLineEx({enemy.x, enemy.y + 40}, {enemy.x - 20, enemy.y + 80}, 3.0f, BLACK);
-        DrawLineEx({enemy.x, enemy.y + 40}, {enemy.x + 20, enemy.y + 80}, 3.0f, BLACK);
-        // Gun (Rectangle to the right)
-        DrawRectangle(enemy.x + 30, enemy.y - 5, 20, 10, BLACK);
-
-        // --- Draw Player (Right, facing Left) ---
-        // Head
-        DrawCircle(player.x, player.y - 50, 20, player.color);
-        // Body
-        DrawLineEx({player.x, player.y - 30}, {player.x, player.y + 40}, 3.0f, BLACK);
-        // Arms (Holding gun to the left)
-        DrawLineEx({player.x, player.y - 10}, {player.x - 30, player.y}, 3.0f, BLACK);
-        // Legs
-        DrawLineEx({player.x, player.y + 40}, {player.x - 20, player.y + 80}, 3.0f, BLACK);
-        DrawLineEx({player.x, player.y + 40}, {player.x + 20, player.y + 80}, 3.0f, BLACK);
-        // Gun (Rectangle to the left)
-        DrawRectangle(player.x - 50, player.y - 5, 20, 10, BLACK);
+        DrawStickMan(enemy);
+        DrawStickMan(player);
 
         // --- Draw Bullets ---
         for (const auto &bullet : bullets)
